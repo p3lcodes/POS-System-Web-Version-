@@ -34,30 +34,37 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pos', label: 'POS / Sell', icon: ShoppingCart },
   { id: 'inventory', label: 'Inventory', icon: Package },
-  { id: 'reports', label: 'Reports', icon: BarChart3 },
-  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabChange }) => {
-  const { currentUser, notifications, isOnline, isDarkMode, toggleDarkMode, logout } = useStore();
+  const { currentUser, notifications, isOnline, isDarkMode, toggleDarkMode, logout, isShiftActive, startShift, endShift } = useStore();
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className="sticky top-0 z-50 w-full bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 border-b border-border">
-      <div className="flex h-16 items-center px-6">
+      <div className="flex h-36 items-center px-6">
         {/* Logo */}
         <div className="flex items-center gap-3 mr-8">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-2xl">
-            🛒
+          <div className="h-32 w-auto">
+            <img 
+              src="/rosemarylogo-.png" 
+              alt="FreshFity Supermarket" 
+              className="h-full w-auto object-contain"
+            />
           </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-lg text-foreground">FreshFity</span>
-            <span className="text-xs text-muted-foreground">Supermarket</span>
-          </div>
+          
+          {/* Shift Button */}
+           <Button 
+            variant={isShiftActive ? "destructive" : "default"}
+            onClick={isShiftActive ? endShift : startShift}
+            className="ml-4 font-semibold shadow-md"
+          >
+            {isShiftActive ? 'End Shift' : 'Start Shift'}
+          </Button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-1 flex-1">
+        <nav className="flex items-center gap-1 flex-1 justify-end mr-4">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -140,6 +147,10 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabCh
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onTabChange('reports')}>
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Reports
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onTabChange('settings')}>
                 <Settings className="w-4 h-4 mr-2" />
                 Settings

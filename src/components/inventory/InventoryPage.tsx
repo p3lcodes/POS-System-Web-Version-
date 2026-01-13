@@ -59,7 +59,7 @@ export const InventoryPage: React.FC = () => {
     unit: 'pcs',
     stock: 0,
     barcode: '',
-    image: '📦',
+    image: '',
     lowStockThreshold: 10,
   });
 
@@ -109,11 +109,13 @@ export const InventoryPage: React.FC = () => {
         unit: 'pcs',
         stock: 0,
         barcode: '',
-        image: '📦',
+        image: '',
         lowStockThreshold: 10,
       });
     }
   };
+
+  const totalProducts = products.length;
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-6">
@@ -125,12 +127,10 @@ export const InventoryPage: React.FC = () => {
             {products.length} products • {lowStockCount} low stock
           </p>
         </div>
-        {isAdmin && (
-          <Button onClick={() => setShowAddModal(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Button>
-        )}
+        <Button onClick={() => setShowAddModal(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Product
+        </Button>
       </div>
 
       {/* Filters */}

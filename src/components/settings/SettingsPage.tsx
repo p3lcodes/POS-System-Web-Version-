@@ -341,6 +341,17 @@ export const SettingsPage: React.FC = () => {
         )}
       </Tabs>
 
+      {/* Branding Footer */}
+      <div className="mt-12 mb-6 text-center">
+        <div className="inline-flex flex-col items-center p-4 rounded-xl bg-slate-50/50 hover:bg-slate-100 transition-colors cursor-default border border-slate-100">
+           <div className="text-xs font-bold text-slate-400 tracking-widest uppercase mb-1">Developed By</div>
+           <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+             P3L Developers
+           </div>
+           <p className="text-xs text-slate-400 mt-1">Point of Sale System v1.2</p>
+        </div>
+      </div>
+
       {/* Add User Modal */}
       <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
         <DialogContent>
@@ -378,14 +389,7 @@ export const SettingsPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Avatar Emoji</Label>
-              <Input
-                value={newUser.avatar}
-                onChange={(e) => setNewUser({ ...newUser, avatar: e.target.value })}
-                placeholder="Enter emoji"
-              />
-            </div>
+            {/* Avatar Emoji removed */}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddUser(false)}>Cancel</Button>

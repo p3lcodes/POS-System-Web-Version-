@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product } from '@/data/products';
 import { User } from '@/data/users';
+import { API_BASE_URL } from '@/config/api';
 
 export interface CartItem {
   product: Product;
@@ -129,7 +130,7 @@ export const useStore = create<AppState>()(
             // Fetch users from backend
             fetchUsers: async () => {
               try {
-                const res = await fetch('/api/users');
+                const res = await fetch(`${API_BASE_URL}/api/users`);
                 const data = await res.json();
                 set({ users: data });
               } catch (err) {
@@ -141,7 +142,7 @@ export const useStore = create<AppState>()(
             // Fetch products from backend
             fetchProducts: async () => {
               try {
-                const res = await fetch('/api/products');
+                const res = await fetch(`${API_BASE_URL}/api/products`);
                 const data = await res.json();
                 set({ products: data });
               } catch (err) {

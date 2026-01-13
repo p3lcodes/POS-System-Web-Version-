@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Product, initialProducts } from '@/data/products';
-import { User, initialUsers } from '@/data/users';
+import { Product } from '@/data/products';
+import { User } from '@/data/users';
 
 export interface CartItem {
   product: Product;
@@ -29,15 +29,36 @@ export interface Notification {
   timestamp: Date;
 }
 
+export interface Shift {
+  id: string;
+  cashierId: string;
+  cashierName: string;
+  startTime: Date;
+  endTime?: Date;
+}
+
+export interface CartTab {
+  id: string;
+  label: string;
+  items: CartItem[];
+}
+
 interface AppState {
   // Auth
   currentUser: User | null;
   users: User[];
   isAuthenticated: boolean;
   
+  // Shift State
+  isShiftActive: boolean;
+  currentShift: Shift | null;
+  shifts: Shift[];
+
   // Products & Cart
   products: Product[];
   cart: CartItem[];
+  cartTabs: CartTab[];
+  activeTabId: string;
   
   // Sales & Reports
   sales: Sale[];
@@ -58,6 +79,7 @@ interface AppState {
   deleteUser: (id: string) => void;
   
   // Product Actions
+  fetchProducts: () => Promise<void>;
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (id: number, updates: Partial<Product>) => void;
   deleteProduct: (id: number) => void;
@@ -81,6 +103,15 @@ interface AppState {
   setOnlineStatus: (status: boolean) => void;
   toggleDarkMode: () => void;
   syncPendingSales: () => void;
+
+  // Shift Actions
+  startShift: () => void;
+  endShift: () => void;
+
+  // Cart Tab Actions
+  addCartTab: () => void;
+  switchCartTab: (id: string) => void;
+  removeCartTab: (id: string) => void;
   
   // Computed
   getCartTotal: () => number;
@@ -94,10 +125,35 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       // Initial State
       currentUser: null,
-      users: initialUsers,
+      users: [],
+            // Fetch users from backend
+            fetchUsers: async () => {
+              try {
+                const res = await fetch('/api/users');
+                const data = await res.json();
+                set({ users: data });
+              } catch (err) {
+                console.error('Failed to fetch users', err);
+              }
+            },
       isAuthenticated: false,
-      products: initialProducts,
+      products: [],
+            // Fetch products from backend
+            fetchProducts: async () => {
+              try {
+                const res = await fetch('/api/products');
+                const data = await res.json();
+                set({ products: data });
+              } catch (err) {
+                console.error('Failed to fetch products', err);
+              }
+            },
       cart: [],
+      cartTabs: [{ id: 'tab-1', label: 'Customer 1', items: [] }],
+      activeTabId: 'tab-1',
+      isShiftActive: false,
+      currentShift: null,
+      shifts: [],
       sales: [],
       notifications: [],
       isOnline: navigator.onLine,
@@ -105,71 +161,141 @@ export const useStore = create<AppState>()(
       pendingSyncs: 0,
 
       // Auth Actions
-      login: (pin: string) => {
-        const user = get().users.find(u => u.pin === pin && u.active);
-        if (user) {
-          set({ currentUser: user, isAuthenticated: true });
-          return true;
+      login: async (pin: string) => {
+        try {
+          const res = await fetch('/api/users/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin })
+          });
+          const data = await res.json();
+          if (data.success) {
+            set({ currentUser: data.user, isAuthenticated: true });
+            return true;
+          }
+          return false;
+        } catch (err) {
+          console.error('Login failed', err);
+          return false;
         }
-        return false;
       },
 
       logout: () => {
         set({ currentUser: null, isAuthenticated: false, cart: [] });
       },
 
-      addUser: (userData) => {
-        const newUser: User = {
-          ...userData,
-          id: `user-${Date.now()}`,
-        };
-        set(state => ({ users: [...state.users, newUser] }));
+      addUser: async (userData) => {
+        try {
+          const res = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...userData, avatar: userData.avatar || '👤' })
+          });
+          const newUser = await res.json();
+          if (newUser && !newUser.error) {
+             set(state => ({ users: [...state.users, newUser] }));
+          }
+        } catch (err) {
+          console.error("Failed to add user", err);
+        }
       },
 
-      updateUser: (id, updates) => {
+      updateUser: async (id, updates) => {
         set(state => ({
           users: state.users.map(u => u.id === id ? { ...u, ...updates } : u),
         }));
+        try {
+           await fetch(`/api/users/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+          });
+        } catch (err) {
+          console.error("Failed to update user", err);
+        }
       },
 
-      deleteUser: (id) => {
+      deleteUser: async (id) => {
         set(state => ({
           users: state.users.filter(u => u.id !== id),
         }));
+        try {
+           await fetch(`/api/users/${id}`, {
+             method: 'DELETE'
+           });
+        } catch (err) {
+           console.error("Failed to delete user", err);
+        }
       },
 
       // Product Actions
-      addProduct: (productData) => {
-        const maxId = Math.max(...get().products.map(p => p.id), 0);
-        const newProduct: Product = {
-          ...productData,
-          id: maxId + 1,
-        };
-        set(state => ({ products: [...state.products, newProduct] }));
+      addProduct: async (productData) => {
+        try {
+          // Optimistic update (optional, but waiting for ID from DB is safer for new items)
+          const res = await fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(productData)
+          });
+          const newProduct = await res.json();
+          set(state => ({ products: [...state.products, newProduct] }));
+        } catch (err) {
+          console.error("Failed to add product to DB", err);
+        }
       },
 
-      updateProduct: (id, updates) => {
+      updateProduct: async (id, updates) => {
+        // Optimistic update
         set(state => ({
           products: state.products.map(p => p.id === id ? { ...p, ...updates } : p),
         }));
+        try {
+          await fetch(`/api/products/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+          });
+        } catch (err) {
+          console.error("Failed to update product in DB", err);
+          // Revert or show error? For now, just log.
+        }
       },
 
-      deleteProduct: (id) => {
+      deleteProduct: async (id) => {
+        // Optimistic update
         set(state => ({
           products: state.products.filter(p => p.id !== id),
         }));
+        try {
+          await fetch(`/api/products/${id}`, {
+            method: 'DELETE'
+          });
+        } catch (err) {
+          console.error("Failed to delete product from DB", err);
+        }
       },
 
-      updateStock: (id, quantity) => {
+      updateStock: async (id, quantity) => {
         const product = get().products.find(p => p.id === id);
         if (product) {
           const newStock = product.stock + quantity;
+          // Optimistic update
           set(state => ({
             products: state.products.map(p => 
               p.id === id ? { ...p, stock: Math.max(0, newStock) } : p
             ),
           }));
           
+          try {
+             await fetch(`/api/products/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ stock: Math.max(0, newStock) })
+            });
+          } catch (err) {
+             console.error("Failed to sync stock to DB", err);
+          }
+
           // Check for low stock
           if (newStock <= product.lowStockThreshold && newStock > 0) {
             get().addNotification({
@@ -250,6 +376,13 @@ export const useStore = create<AppState>()(
           pendingSyncs: isOnline ? state.pendingSyncs : state.pendingSyncs + 1,
         }));
 
+        // Save sale to Database (Fire & Forget)
+        fetch('/api/sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sale)
+        }).catch(err => console.error("Failed to save sale to DB", err));
+
         // Add payment notification
         get().addNotification({
           type: 'payment',
@@ -321,6 +454,83 @@ export const useStore = create<AppState>()(
         }
       },
 
+      // Shift Actions
+      startShift: () => {
+        const { currentUser } = get();
+        if (!currentUser) return;
+        const shift: Shift = {
+          id: `shift-${Date.now()}`,
+          cashierId: currentUser.id,
+          cashierName: currentUser.name,
+          startTime: new Date()
+        };
+        set({ isShiftActive: true, currentShift: shift });
+      },
+
+      endShift: () => {
+        const { currentShift, shifts } = get();
+        if (currentShift) {
+          const endedShift = { ...currentShift, endTime: new Date() };
+          set({
+            isShiftActive: false,
+            currentShift: null,
+            shifts: [endedShift, ...shifts],
+          });
+        }
+      },
+
+      // Cart Tab Actions
+      addCartTab: () => {
+        const { cartTabs, cart, activeTabId } = get();
+        // Save current cart first
+        const updatedTabs = cartTabs.map(t => t.id === activeTabId ? { ...t, items: cart } : t);
+        
+        const newId = `tab-${Date.now()}`;
+        const newTab = { id: newId, label: `Customer ${updatedTabs.length + 1}`, items: [] };
+        
+        set({
+          cartTabs: [...updatedTabs, newTab],
+          activeTabId: newId,
+          cart: []
+        });
+      },
+
+      switchCartTab: (id) => {
+        const { cartTabs, cart, activeTabId } = get();
+        if (id === activeTabId) return;
+
+        // Save current cart
+        const updatedTabs = cartTabs.map(t => t.id === activeTabId ? { ...t, items: cart } : t);
+        
+        // Load new cart
+        const targetTab = updatedTabs.find(t => t.id === id);
+        if (targetTab) {
+          set({
+            cartTabs: updatedTabs,
+            activeTabId: id,
+            cart: targetTab.items
+          });
+        }
+      },
+
+      removeCartTab: (id) => {
+        const { cartTabs, activeTabId } = get();
+        if (cartTabs.length <= 1) return; // Don't remove last tab
+
+        const newTabs = cartTabs.filter(t => t.id !== id);
+        
+        // If we removed the active tab, switch to the first one
+        if (id === activeTabId) {
+          set({
+            cartTabs: newTabs,
+            activeTabId: newTabs[0].id,
+            cart: newTabs[0].items
+          });
+        } else {
+          set({ cartTabs: newTabs });
+        }
+      },
+
       // Computed
       getCartTotal: () => {
         return get().cart.reduce(
@@ -352,6 +562,14 @@ export const useStore = create<AppState>()(
         notifications: state.notifications,
         isDarkMode: state.isDarkMode,
         pendingSyncs: state.pendingSyncs,
+        shifts: state.shifts,
+        currentShift: state.currentShift, // Persist current shift in case of refresh
+        isShiftActive: state.isShiftActive,
+        cartTabs: state.cartTabs,
+        activeTabId: state.activeTabId,
+        // We persist 'cart' implicitly as part of loading active tab? 
+        // No, 'cart' is separate in state. We should persist it too.
+        cart: state.cart,
       }),
     }
   )

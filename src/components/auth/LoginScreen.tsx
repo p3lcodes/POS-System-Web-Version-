@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { X, Delete } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
+import { API_BASE_URL } from '@/config/api';
 
 export const LoginScreen: React.FC = () => {
   const [pin, setPin] = useState('');
@@ -46,7 +47,7 @@ export const LoginScreen: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch('/api/users/reset-pin', {
+      const res = await fetch(`${API_BASE_URL}/api/users/reset-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail })
@@ -223,7 +224,7 @@ export const LoginScreen: React.FC = () => {
               return;
             }
             try {
-              const res = await fetch('/api/users', {
+              const res = await fetch(`${API_BASE_URL}/api/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: signUpName, email: signUpEmail, pin: signUpPin, role: signUpRole })

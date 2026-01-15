@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
+import { API_BASE_URL } from '@/config/api';
 import { cn } from '@/lib/utils';
 import { 
   Calendar,
@@ -77,7 +78,7 @@ export const ReportsPage: React.FC = () => {
   // Fetch Detailed Sales for Lists
   const fetchDetails = async () => {
     try {
-      const res = await fetch('/api/sales'); // Get all sales
+      const res = await fetch(`${API_BASE_URL}/api/sales`); // Get all sales
       const allSales = await res.json();
       
       // Filter client-side for simplicity on modals for now

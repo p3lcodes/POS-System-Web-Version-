@@ -164,7 +164,7 @@ export const useStore = create<AppState>()(
       // Auth Actions
       login: async (pin: string) => {
         try {
-          const res = await fetch('/api/users/login', {
+          const res = await fetch(`${API_BASE_URL}/api/users/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pin })
@@ -187,7 +187,7 @@ export const useStore = create<AppState>()(
 
       addUser: async (userData) => {
         try {
-          const res = await fetch('/api/users', {
+          const res = await fetch(`${API_BASE_URL}/api/users`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...userData, avatar: userData.avatar || '👤' })
@@ -206,7 +206,7 @@ export const useStore = create<AppState>()(
           users: state.users.map(u => u.id === id ? { ...u, ...updates } : u),
         }));
         try {
-           await fetch(`/api/users/${id}`, {
+           await fetch(`${API_BASE_URL}/api/users/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updates)
@@ -221,7 +221,7 @@ export const useStore = create<AppState>()(
           users: state.users.filter(u => u.id !== id),
         }));
         try {
-           await fetch(`/api/users/${id}`, {
+           await fetch(`${API_BASE_URL}/api/users/${id}`, {
              method: 'DELETE'
            });
         } catch (err) {
@@ -233,7 +233,7 @@ export const useStore = create<AppState>()(
       addProduct: async (productData) => {
         try {
           // Optimistic update (optional, but waiting for ID from DB is safer for new items)
-          const res = await fetch('/api/products', {
+          const res = await fetch(`${API_BASE_URL}/api/products`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(productData)
@@ -251,7 +251,7 @@ export const useStore = create<AppState>()(
           products: state.products.map(p => p.id === id ? { ...p, ...updates } : p),
         }));
         try {
-          await fetch(`/api/products/${id}`, {
+          await fetch(`${API_BASE_URL}/api/products/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updates)
@@ -268,7 +268,7 @@ export const useStore = create<AppState>()(
           products: state.products.filter(p => p.id !== id),
         }));
         try {
-          await fetch(`/api/products/${id}`, {
+          await fetch(`${API_BASE_URL}/api/products/${id}`, {
             method: 'DELETE'
           });
         } catch (err) {
@@ -288,7 +288,7 @@ export const useStore = create<AppState>()(
           }));
           
           try {
-             await fetch(`/api/products/${id}`, {
+             await fetch(`${API_BASE_URL}/api/products/${id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ stock: Math.max(0, newStock) })
@@ -378,7 +378,7 @@ export const useStore = create<AppState>()(
         }));
 
         // Save sale to Database (Fire & Forget)
-        fetch('/api/sales', {
+        fetch(`${API_BASE_URL}/api/sales`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sale)

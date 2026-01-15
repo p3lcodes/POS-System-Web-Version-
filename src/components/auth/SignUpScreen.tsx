@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { API_BASE_URL } from '@/config/api';
 
 export const SignUpScreen: React.FC<{ onSignUp: () => void }> = ({ onSignUp }) => {
   const [name, setName] = useState('');
@@ -17,7 +18,7 @@ export const SignUpScreen: React.FC<{ onSignUp: () => void }> = ({ onSignUp }) =
       return;
     }
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch(`${API_BASE_URL}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, pin, email, role: 'owner' })
@@ -39,7 +40,7 @@ export const SignUpScreen: React.FC<{ onSignUp: () => void }> = ({ onSignUp }) =
       return;
     }
     try {
-      const res = await fetch('/api/users/login', {
+      const res = await fetch(`${API_BASE_URL}/api/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: loginPin })

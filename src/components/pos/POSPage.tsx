@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import BarcodeScannerComponent from 'react-qr-barcode-scanner';
 import { stkPush, mpesaConfig } from '@/lib/mpesaDaraja';
 import { useStore } from '@/store/useStore';
+import { API_BASE_URL } from '@/config/api';
 import { Product } from '@/data/products';
 import { cn } from '@/lib/utils';
 import { 
@@ -110,6 +111,8 @@ export const POSPage: React.FC = () => {
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaLoading, setMpesaLoading] = useState(false);
   const [mpesaError, setMpesaError] = useState('');
+  const [mpesaWaiting, setMpesaWaiting] = useState(false);
+  const [mpesaStatusMessage, setMpesaStatusMessage] = useState('');
   const [quantityModal, setQuantityModal] = useState<{ product: Product; show: boolean } | null>(null);
   const [tempQuantity, setTempQuantity] = useState('1');
   // Cash payment modal state
@@ -213,13 +216,57 @@ export const POSPage: React.FC = () => {
     setMpesaLoading(true);
     setMpesaError('');
     try {
-      // Call Daraja STK Push (stub)
-      await stkPush(mpesaConfig, mpesaPhone, getCartTotal(), 'POS', 'POS Payment');
+      // Call Daraja STK Push
+      const res = await stkPush(mpesaConfig, mpesaPhone, getCartTotal(), 'POS', 'POS Payment');
+      const checkoutId = res.data.CheckoutRequestID;
+      
       setShowMpesaPrompt(false);
-      setShowPayment(false);
-      setMpesaPhone('');
-      clearCart();
-      setShowReceipt(true);
+      setMpesaWaiting(true);
+      setMpesaStatusMessage('Sent STK Push to customer info...');
+
+      // Poll status
+      const pollInterval = setInterval(async () => {
+        try {
+           const statusRes = await fetch(`${API_BASE_URL}/api/mpesa/status/${checkoutId}`);
+           const statusData = await statusRes.json();
+           
+           if (statusData.status === 'COMPLETED') {
+             clearInterval(pollInterval);
+             setMpesaWaiting(false);
+             const sale = completeSale('mpesa', statusData.mpesaReceiptNumber);
+             if (sale) {
+                setLastSale({ ...sale, customerPhone: statusData.phoneNumber });
+             }
+             setMpesaPhone('');
+             clearCart();
+             setShowReceipt(true);
+           } else if (statusData.status === 'FAILED') {
+             clearInterval(pollInterval);
+             setMpesaWaiting(false);
+             setShowMpesaPrompt(true);
+             setMpesaError('Payment Failed or Cancelled.');
+           } else {
+             setMpesaStatusMessage('Waiting for customer to enter PIN...');
+           }
+        } catch (e) {
+           console.error("Polling error", e);
+        }
+      }, 3000);
+
+      // Timeout after 60s
+      setTimeout(() => {
+        if (pollInterval) clearInterval(pollInterval);
+        // Only if still waiting
+        setMpesaWaiting(prev => {
+          if (prev) {
+             setMpesaError('Request timed out. Check status manually or retry.');
+             setShowMpesaPrompt(true);
+             return false;
+          }
+          return false;
+        });
+      }, 60000);
+
     } catch (err: any) {
       console.error("M-Pesa Error:", err);
       setMpesaError(err.message || 'Failed to initiate payment.');
@@ -559,6 +606,20 @@ export const POSPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* M-Pesa Waiting Modal */}
+      <Dialog open={mpesaWaiting} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+             <DialogTitle>Processing Payment</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+            <p className="font-semibold text-lg">{mpesaStatusMessage}</p>
+            <p className="text-sm text-muted-foreground mt-2">Check customer phone for USSD prompt.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {/* M-Pesa Prompt Modal */}
       <Dialog open={showMpesaPrompt} onOpenChange={setShowMpesaPrompt}>
         <DialogContent className="sm:max-w-sm">
@@ -645,16 +706,22 @@ export const POSPage: React.FC = () => {
                 <span>KES {lastSale.change.toLocaleString()}</span>
               </div>
             )}
-            {lastSale?.method && (
+            {lastSale?.paymentMethod && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                 <span>Payment</span>
-                <span>{lastSale.method.toUpperCase()}</span>
+                <span>{lastSale.paymentMethod === 'mpesa' ? 'M-PESA' : 'CASH'}</span>
               </div>
             )}
-            {lastSale?.ref && (
+            {lastSale?.mpesaRef && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span>Txn Ref</span>
-                <span>{lastSale.ref}</span>
+                <span>Ref</span>
+                <span>{lastSale.mpesaRef}</span>
+              </div>
+            )}
+            {lastSale?.customerPhone && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                <span>Payer</span>
+                <span>{lastSale.customerPhone}</span>
               </div>
             )}
             <div className="text-center" style={{ marginTop: 8 }}>Thank you for shopping with us!</div>

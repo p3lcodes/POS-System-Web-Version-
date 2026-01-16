@@ -12,18 +12,24 @@ import { ReportsPage } from '@/components/reports/ReportsPage';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 
 const Index = () => {
-  const { isAuthenticated, setOnlineStatus, isDarkMode, users, fetchProducts, fetchUsers } = useStore();
+  const { isAuthenticated, setOnlineStatus, isDarkMode, users, fetchProducts, fetchUsers, currentUser } = useStore();
   const [showSignUp, setShowSignUp] = useState(false);
   const [activeTab, setActiveTab] = useState('pos');
+
+  // Role-based tab access
+  const isCashier = currentUser?.role === 'cashier';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
+  const isDeveloper = currentUser?.role === 'developer';
+  const allowedTabs = isCashier
+    ? ['pos', 'inventory']
+    : ['pos', 'inventory', 'reports', 'settings'];
 
   // Monitor online status
   useEffect(() => {
     const handleOnline = () => setOnlineStatus(true);
     const handleOffline = () => setOnlineStatus(false);
-    
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -35,9 +41,9 @@ const Index = () => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     }
-  }, []);
+  }, [isDarkMode]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchProducts();
     fetchUsers();
     if (users.length === 0) {
@@ -45,33 +51,41 @@ const Index = () => {
     }
   }, []);
 
+  // If cashier tries to access forbidden tab, force to POS
+  useEffect(() => {
+    if (isCashier && !allowedTabs.includes(activeTab)) {
+      setActiveTab('pos');
+    }
+  }, [activeTab, isCashier]);
+
+  let content;
   if (!isAuthenticated) {
     if (showSignUp) {
-      return <SignUpScreen onSignUp={() => setShowSignUp(false)} />;
+      content = <SignUpScreen onSignUp={() => setShowSignUp(false)} />;
+    } else {
+      content = <LoginScreen />;
     }
-    return <LoginScreen />;
+  } else {
+    const renderPage = () => {
+      if (isCashier && !allowedTabs.includes(activeTab)) return <POSPage />;
+      switch (activeTab) {
+        case 'pos': return <POSPage />;
+        case 'inventory': return <InventoryPage />;
+        case 'reports': return isCashier ? <POSPage /> : <ReportsPage />;
+        case 'settings': return isCashier ? <POSPage /> : <SettingsPage />;
+        default: return <POSPage />;
+      }
+    };
+    content = (
+      <div className="min-h-screen bg-background">
+        <DesktopHeader activeTab={activeTab} onTabChange={setActiveTab} allowedTabs={allowedTabs} />
+        <main className="animate-fade-in">
+          {renderPage()}
+        </main>
+      </div>
+    );
   }
-
-  const renderPage = () => {
-    switch (activeTab) {
-      case 'pos': return <POSPage />;
-      case 'inventory': return <InventoryPage />;
-      case 'reports': return <ReportsPage />;
-      case 'settings': return <SettingsPage />;
-      default: return <POSPage />;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-background">
-        <DesktopHeader activeTab={activeTab} onTabChange={setActiveTab} />
-      
-      <main className="animate-fade-in">
-        {renderPage()}
-      </main>
-      
-    </div>
-  );
+  return content;
 };
 
 export default Index;

@@ -28,15 +28,20 @@ import { Badge } from '@/components/ui/badge';
 interface DesktopHeaderProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  allowedTabs?: string[];
 }
 
+
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  // { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pos', label: 'POS / Sell', icon: ShoppingCart },
   { id: 'inventory', label: 'Inventory', icon: Package },
+  { id: 'reports', label: 'Reports', icon: BarChart3 },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabChange }) => {
+
+export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabChange, allowedTabs }) => {
   const { currentUser, notifications, isOnline, isDarkMode, toggleDarkMode, logout, isShiftActive, startShift, endShift } = useStore();
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -65,7 +70,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabCh
 
         {/* Navigation */}
         <nav className="flex items-center gap-1 flex-1 justify-end mr-4">
-          {navItems.map((item) => {
+          {navItems.filter(item => !allowedTabs || allowedTabs.includes(item.id)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
@@ -147,14 +152,19 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabCh
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onTabChange('reports')}>
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Reports
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onTabChange('settings')}>
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </DropdownMenuItem>
+              {/* Only show Reports/Settings if allowed */}
+              {(!allowedTabs || allowedTabs.includes('reports')) && (
+                <DropdownMenuItem onClick={() => onTabChange('reports')}>
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Reports
+                </DropdownMenuItem>
+              )}
+              {(!allowedTabs || allowedTabs.includes('settings')) && (
+                <DropdownMenuItem onClick={() => onTabChange('settings')}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />

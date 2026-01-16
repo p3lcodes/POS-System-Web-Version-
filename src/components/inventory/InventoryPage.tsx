@@ -43,15 +43,13 @@ import {
 } from '@/components/ui/table';
 
 export const InventoryPage: React.FC = () => {
-  const { products, updateProduct, updateStock, addProduct, deleteProduct, currentUser } = useStore();
-  
+  const { products, updateProduct, updateStock, addProduct, deleteProduct, currentUser, login } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showLowStock, setShowLowStock] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [stockAdjust, setStockAdjust] = useState<{ product: Product; amount: string } | null>(null);
-  
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '',
     category: 'Beverages',
@@ -62,22 +60,24 @@ export const InventoryPage: React.FC = () => {
     image: '',
     lowStockThreshold: 10,
   });
-
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner' || currentUser?.role === 'developer';
-
+  const isCashier = currentUser?.role === 'cashier';
+  // State for admin PIN confirmation
+  const [showAdminPinDialog, setShowAdminPinDialog] = useState(false);
+  const [pendingEditProduct, setPendingEditProduct] = useState<Product | null>(null);
+  const [adminPin, setAdminPin] = useState('');
+  const [adminPinError, setAdminPinError] = useState('');
   // Filter products
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           product.barcode.includes(searchQuery);
+        product.barcode.includes(searchQuery);
       const matchesCategory = !selectedCategory || product.category === selectedCategory;
       const matchesLowStock = !showLowStock || product.stock <= product.lowStockThreshold;
       return matchesSearch && matchesCategory && matchesLowStock;
     });
   }, [products, searchQuery, selectedCategory, showLowStock]);
-
   const lowStockCount = products.filter(p => p.stock <= p.lowStockThreshold).length;
-
   // Handle stock adjustment
   const handleStockAdjust = () => {
     if (stockAdjust && stockAdjust.amount) {
@@ -88,15 +88,42 @@ export const InventoryPage: React.FC = () => {
       }
     }
   };
-
-  // Handle save edit
+  // Helper to check if price changed
+  const priceChanged = (original: Product, edited: Product) => original.price !== edited.price;
   const handleSaveEdit = () => {
     if (editProduct) {
+      // If cashier and price changed, require admin PIN
+      if (isCashier && pendingEditProduct && priceChanged(pendingEditProduct, editProduct)) {
+        setShowAdminPinDialog(true);
+        return;
+      }
       updateProduct(editProduct.id, editProduct);
       setEditProduct(null);
+      setPendingEditProduct(null);
     }
   };
-
+  // When opening edit modal, store original product for price comparison
+  const handleEditProduct = (product: Product) => {
+    setEditProduct(product);
+    setPendingEditProduct(product);
+  };
+  // Handle admin PIN confirmation
+  const handleAdminPinConfirm = async () => {
+    if (!adminPin) return setAdminPinError('Enter admin PIN');
+    const success = await login(adminPin);
+    if (success && (currentUser?.role === 'admin' || currentUser?.role === 'owner' || currentUser?.role === 'developer')) {
+      if (editProduct) {
+        updateProduct(editProduct.id, editProduct);
+        setEditProduct(null);
+        setPendingEditProduct(null);
+      }
+      setShowAdminPinDialog(false);
+      setAdminPin('');
+      setAdminPinError('');
+    } else {
+      setAdminPinError('Invalid admin PIN');
+    }
+  };
   // Handle add product
   const handleAddProduct = () => {
     if (newProduct.name && newProduct.price) {
@@ -114,9 +141,7 @@ export const InventoryPage: React.FC = () => {
       });
     }
   };
-
   const totalProducts = products.length;
-
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-6">
       {/* Header */}
@@ -222,23 +247,26 @@ export const InventoryPage: React.FC = () => {
                         <Package className="w-4 h-4 mr-1" />
                         Adjust
                       </Button>
-                      {isAdmin && (
+                      {(isAdmin || isCashier) && (
                         <>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setEditProduct(product)}
+                            onClick={() => handleEditProduct(product)}
+                            disabled={isCashier && !isAdmin}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={() => deleteProduct(product.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => deleteProduct(product.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
@@ -319,6 +347,7 @@ export const InventoryPage: React.FC = () => {
                     type="number"
                     value={editProduct.price}
                     onChange={(e) => setEditProduct({ ...editProduct, price: parseFloat(e.target.value) || 0 })}
+                    disabled={isCashier}
                   />
                 </div>
                 <div>
@@ -360,6 +389,29 @@ export const InventoryPage: React.FC = () => {
               <Save className="w-4 h-4 mr-2" />
               Save Changes
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Admin PIN Confirmation Dialog (moved outside Edit Product Dialog) */}
+      <Dialog open={showAdminPinDialog} onOpenChange={setShowAdminPinDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Admin Confirmation Required</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm">Enter admin PIN to confirm price change.</p>
+            <Input
+              type="password"
+              value={adminPin}
+              onChange={e => setAdminPin(e.target.value)}
+              placeholder="Admin PIN"
+              maxLength={4}
+            />
+            {adminPinError && <p className="text-destructive text-sm">{adminPinError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAdminPinDialog(false)}>Cancel</Button>
+            <Button onClick={handleAdminPinConfirm}>Confirm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -445,6 +497,7 @@ export const InventoryPage: React.FC = () => {
               Add Product
             </Button>
           </DialogFooter>
+
         </DialogContent>
       </Dialog>
     </div>

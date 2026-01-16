@@ -5,24 +5,37 @@ import { LoginScreen } from '@/components/auth/LoginScreen';
 import { SignUpScreen } from '@/components/auth/SignUpScreen';
 import { DesktopHeader } from '@/components/layout/DesktopHeader';
 import { MobileNavBar } from '@/components/layout/MobileNavBar';
-// import { Dashboard } from '@/components/dashboard/Dashboard';
+import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { POSPage } from '@/components/pos/POSPage';
 import { InventoryPage } from '@/components/inventory/InventoryPage';
 import { ReportsPage } from '@/components/reports/ReportsPage';
 import { SettingsPage } from '@/components/settings/SettingsPage';
+import { DeveloperDashboard } from '@/components/developer/DeveloperDashboard';
 
 const Index = () => {
   const { isAuthenticated, setOnlineStatus, isDarkMode, users, fetchProducts, fetchUsers, currentUser } = useStore();
   const [showSignUp, setShowSignUp] = useState(false);
   const [activeTab, setActiveTab] = useState('pos');
+  const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+
+  // Role-based logic
+  const isDeveloper = currentUser?.role === 'developer';
 
   // Role-based tab access
   const isCashier = currentUser?.role === 'cashier';
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
-  const isDeveloper = currentUser?.role === 'developer';
+  
   const allowedTabs = isCashier
     ? ['pos', 'inventory']
-    : ['pos', 'inventory', 'reports', 'settings'];
+    : ['dashboard', 'pos', 'inventory', 'reports', 'settings'];
+
+  // Admin redirect to dashboard
+  useEffect(() => {
+    if (isAuthenticated && isAdmin && !initialRedirectDone) {
+      setActiveTab('dashboard');
+      setInitialRedirectDone(true);
+    }
+  }, [isAuthenticated, isAdmin, initialRedirectDone]);
 
   // Monitor online status
   useEffect(() => {
@@ -58,6 +71,11 @@ const Index = () => {
     }
   }, [activeTab, isCashier]);
 
+  // If Developer, Show Developer Dashboard directly (No POS)
+  if (isAuthenticated && isDeveloper) {
+    return <DeveloperDashboard />;
+  }
+
   let content;
   if (!isAuthenticated) {
     if (showSignUp) {
@@ -69,6 +87,7 @@ const Index = () => {
     const renderPage = () => {
       if (isCashier && !allowedTabs.includes(activeTab)) return <POSPage />;
       switch (activeTab) {
+        case 'dashboard': return <AdminDashboard onNavigate={setActiveTab} />;
         case 'pos': return <POSPage />;
         case 'inventory': return <InventoryPage />;
         case 'reports': return isCashier ? <POSPage /> : <ReportsPage />;

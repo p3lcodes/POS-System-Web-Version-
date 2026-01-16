@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import BarcodeScannerComponent from 'react-qr-barcode-scanner';
 import { stkPush, mpesaConfig } from '@/lib/mpesaDaraja';
 import { useStore } from '@/store/useStore';
@@ -39,8 +39,12 @@ export const POSPage: React.FC = () => {
     activeTabId,
     addCartTab,
     switchCartTab,
-    removeCartTab
+    removeCartTab,
+    currentUser
   } = useStore();
+
+  const bizName = currentUser?.business?.name || 'FRESH FITY SUPERMARKET';
+  const bizPhone = currentUser?.business?.phone || '0712 345678';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -55,6 +59,25 @@ export const POSPage: React.FC = () => {
 
   // Last scanned barcode to prevent rapid duplicate processing
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  
+  // Click outside logic for Search Results
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        // Clear search inputs if focus is lost and not clicking inside
+        if (searchQuery || barcodeInput) {
+           setSearchQuery('');
+           setBarcodeInput('');
+        }
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [searchQuery, barcodeInput]);
+
+  // Check if search is active
+  const isSearching = searchQuery.trim() !== '' || barcodeInput.trim() !== '';
 
   // Handle camera barcode scan
   const handleCameraScan = (err: any, result: any) => {
@@ -138,10 +161,11 @@ export const POSPage: React.FC = () => {
       const product = products.find(p => p.barcode === barcodeInput);
       if (product) {
         addToCart(product, 1);
-        setBarcodeInput('');
+        // Do NOT clear barcode input immediately so the list stays
+        // setBarcodeInput(''); 
       } else {
         setNotFoundBarcode(barcodeInput);
-        setBarcodeInput('');
+        // setBarcodeInput(''); 
       }
     }
   };
@@ -156,8 +180,8 @@ export const POSPage: React.FC = () => {
             <div className="font-mono text-lg mb-4">{notFoundBarcode}</div>
             <p className="mb-4">Would you like to add this product to inventory?</p>
             <Button onClick={() => {
-              // Redirect to inventory page or open add product modal (customize as needed)
-              window.location.href = '/inventory';
+              // Redirect to inventory page with the barcode parameter
+              window.location.href = `/inventory?newBarcode=${notFoundBarcode}`;
             }}>Add Product</Button>
             <Button variant="outline" className="ml-2" onClick={() => setNotFoundBarcode(null)}>Cancel</Button>
           </div>
@@ -281,12 +305,14 @@ export const POSPage: React.FC = () => {
       <div className={cn(
         "absolute inset-0 flex items-center justify-center z-50 pointer-events-none transition-all duration-700",
         cart.length > 0 
-          ? "opacity-[0.05] scale-90 blur-[0px]" 
-          : "opacity-100 scale-100"
+          ? "opacity-[0.05] scale-90 blur-[0px]"
+          : isSearching
+            ? "opacity-20 scale-100 blur-sm" 
+            : "opacity-100 scale-100"
       )}>
         <img 
-          src="/rosemarylogo-.png" 
-          alt="" 
+          src={currentUser?.business?.logo || "/rosemarylogo-.png"}
+          alt="Business Logo" 
           className="w-[300px] h-auto object-contain drop-shadow-md" 
         />
       </div>
@@ -303,7 +329,7 @@ export const POSPage: React.FC = () => {
       )}
 
       {/* Product Scan/Search - Left Side (Flexible width) */}
-      <div className="flex-1 bg-card border-r border-border flex flex-col p-4 z-10">
+      <div className="flex-1 bg-card border-r border-border flex flex-col p-4 z-10" ref={searchContainerRef}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Scan or Search Product</h2>
           <Button 
@@ -323,8 +349,18 @@ export const POSPage: React.FC = () => {
             placeholder="Search products..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 text-lg"
+            className="pl-10 h-12 text-lg pr-10"
           />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+              onClick={() => setSearchQuery('')}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
         </div>
         <div className="relative mb-4">
           <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -423,9 +459,9 @@ export const POSPage: React.FC = () => {
         <div className="p-4 border-b border-border text-center">
           {/* Supermarket Receipt Header - Printed Style */}
           <div className="flex flex-col items-center mb-2" style={{ fontFamily: 'monospace' }}>
-            <span className="font-bold text-lg">FRESH FITY SUPERMARKET</span>
+            <span className="font-bold text-lg uppercase">{bizName}</span>
             <span className="text-xs">Ruiru</span>
-            <span className="text-xs">Tel: 0712 345678</span>
+            <span className="text-xs">Tel: {bizPhone}</span>
             <span className="text-xs">Receipt #: {Math.floor(Math.random()*1000000)}</span>
             <hr className="w-2/3 my-2 border-dashed border-border" />
             <span className="text-xs">Thank you for shopping with us!</span>
@@ -662,9 +698,9 @@ export const POSPage: React.FC = () => {
             }}
           >
             <div className="text-center mb-2">
-              <div style={{ fontWeight: 'bold', fontSize: '1.1em' }}>FRESH FITY SUPERMARKET</div>
+              <div style={{ fontWeight: 'bold', fontSize: '1.1em' }} className="uppercase">{bizName}</div>
               <div>Ruiru</div>
-              <div>Tel: 0712 345678</div>
+              <div>Tel: {bizPhone}</div>
               <div>Receipt #: {lastSale?.id || Math.floor(Math.random()*1000000)}</div>
               <div>{new Date().toLocaleString()}</div>
               <div style={{ borderTop: '1px dashed #222', margin: '6px 0' }}></div>

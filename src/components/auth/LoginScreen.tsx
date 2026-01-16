@@ -8,96 +8,31 @@ import { useStore } from '@/store/useStore';
 import { API_BASE_URL } from '@/config/api';
 
 export const LoginScreen: React.FC = () => {
+  const { setCurrentUser } = useStore();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isShaking, setIsShaking] = useState(false);
-  const { login, users } = useStore();
-
-  // Sign Up state
   const [showSignUp, setShowSignUp] = useState(false);
+
+  // Reset Flow State
+  const [showReset, setShowReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [pendingOtp, setPendingOtp] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [showNewPinForm, setShowNewPinForm] = useState(false);
+  const [pinChangeMsg, setPinChangeMsg] = useState('');
+
+  // Sign Up State
   const [signUpName, setSignUpName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPin, setSignUpPin] = useState('');
   const [signUpRole, setSignUpRole] = useState('Cashier');
   const [signUpError, setSignUpError] = useState('');
-
-  // PIN reset state and handlers
-  const [showReset, setShowReset] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetError, setResetError] = useState('');
-
-  const handleWhatsAppReset = () => {
-    const user = users.find(u => u.email === resetEmail);
-    if (!user) {
-      setResetError('Email not found. Please enter the email registered in the POS system.');
-      return;
-    }
-    if (!user.whatsapp) {
-      setResetError('No WhatsApp number found for this user.');
-      return;
-    }
-    window.open(`https://wa.me/${user.whatsapp}?text=Please+reset+PIN+for+cashier+${user.name}`, '_blank');
-    setResetError('');
-  };
-
-  const handleEmailReset = async () => {
-    const user = users.find(u => u.email === resetEmail);
-    if (!user) {
-      setResetError('Email not found. Please enter the email registered in the POS system.');
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/users/reset-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResetError('Reset link sent to your email.');
-      } else {
-        setResetError(data.error || 'Failed to send reset link.');
-      }
-    } catch (err) {
-      setResetError('Failed to send reset link.');
-    }
-  };
-
-  const handlePinInput = (digit: string) => {
-    if (pin.length < 4) {
-      const newPin = pin + digit;
-      setPin(newPin);
-      setError('');
-
-      if (newPin.length === 4) {
-        attemptLogin(newPin);
-      }
-    }
-  };
-
-  const attemptLogin = async (pinCode: string) => {
-    const success = await login(pinCode);
-    if (!success) {
-      setError('Invalid PIN');
-      setIsShaking(true);
-      setTimeout(() => {
-        setIsShaking(false);
-        setPin('');
-      }, 500);
-    }
-  };
-
-  const handleLogin = () => attemptLogin(pin);
-
-  const handleDelete = () => {
-    setPin(pin.slice(0, -1));
-    setError('');
-  };
-
-  const handleClear = () => {
-    setPin('');
-    setError('');
-  };
 
   const keypadButtons = [
     '1', '2', '3',
@@ -106,118 +41,355 @@ export const LoginScreen: React.FC = () => {
     'clear', '0', 'delete'
   ];
 
+  const handlePinInput = (num: string) => {
+    if (pin.length < 4) {
+      setPin(prev => prev + num);
+      setError('');
+    }
+  };
+
+  React.useEffect(() => {
+    if (pin.length === 4) {
+      handleLogin();
+    }
+  }, [pin]);
+
+  const handleDelete = () => {
+    setPin(prev => prev.slice(0, -1));
+    setError('');
+  };
+
+  const handleClear = () => {
+    setPin('');
+    setError('');
+  };
+
+  const handleLogin = async () => {
+    if (pin.length !== 4) return;
+
+    try {
+      // Direct login attempt
+      const res = await fetch(`${API_BASE_URL}/api/users/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pin }),
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.user) {
+        setCurrentUser(data.user);
+      } else {
+        setError('Invalid PIN');
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 500);
+        setPin('');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Connection error');
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
+    }
+  };
+
+  const handleEmailReset = async () => {
+    if (!resetEmail) {
+      setResetError('Please enter your email');
+      return;
+    }
+    setPendingOtp(true);
+    setResetError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users/request-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowOtpInput(true);
+      } else {
+        setResetError(data.error || 'Failed to send OTP');
+        setPendingOtp(false);
+      }
+    } catch (error) {
+       setResetError('Network error');
+       setPendingOtp(false);
+    }
+  };
+
+  const handleWhatsAppReset = () => {
+     // Placeholder for future WhatsApp integration
+     setResetError('WhatsApp reset not configured yet.');
+  };
+
+  const handleOtpVerify = async () => {
+    if (!otp) {
+      setOtpError('Please enter the code');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail, otp })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowNewPinForm(true);
+        setShowOtpInput(false);
+        setOtpError('');
+      } else {
+        setOtpError(data.error || 'Invalid OTP');
+      }
+    } catch (error) {
+      setOtpError('Network error');
+    }
+  };
+
+  const handleSetNewPin = async () => {
+    if (newPin.length !== 4 || confirmPin.length !== 4) {
+      setPinChangeMsg('PIN must be 4 digits');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setPinChangeMsg('PINs do not match');
+      return;
+    }
+    try {
+       const res = await fetch(`${API_BASE_URL}/api/users/reset-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail, otp, newPin })
+      });
+      const data = await res.json();
+      if (data.success) {
+         setPinChangeMsg('PIN successfully changed! Please login.');
+         setTimeout(() => {
+             // Reset everything and go back to login
+             setShowReset(false);
+             setResetEmail('');
+             setOtp('');
+             setNewPin('');
+             setConfirmPin('');
+             setShowOtpInput(false);
+             setShowNewPinForm(false);
+             setPendingOtp(false);
+             setPinChangeMsg('');
+         }, 2000);
+      } else {
+         setPinChangeMsg(data.error || 'Failed to reset PIN');
+      }
+    } catch (error) {
+        setPinChangeMsg('Network error');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      {/* Logo */}
-      <div className="flex flex-col items-center mb-2 animate-fade-in">
-        <div className="w-[500px] h-auto flex items-center justify-center mb-2">
-            <img 
-              src="/logo2.png" 
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 animate-fade-in relative overflow-hidden">
+      {/* Background decorations */}
+      <div className="absolute inset-0 bg-grid-slate-200/50 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] -z-10" />
+      <div className="absolute top-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -z-10" />
+      <div className="absolute bottom-0 right-0 w-64 h-64 bg-secondary/20 rounded-full blur-3xl -z-10" />
+
+      {/* Main Logo */}
+      <div className="mb-0 relative z-10 flex flex-col items-center animate-slide-up -mb-12">
+        <div className="relative w-64 h-64 md:w-80 md:h-80 mb-0 transition-transform hover:scale-105 duration-300 group perspective-1000">
+           <img 
+              src="/main logos/main.png" 
               alt="FreshFity Logo" 
-              className="w-full h-auto object-contain"
+              className="w-full h-full object-contain drop-shadow-2xl"
             />
         </div>
-        <p className="text-muted-foreground">Point of Sale System</p>
       </div>
-
-      {/* Login or Sign Up */}
+      
       {!showSignUp ? (
         <>
-          {/* PIN Display */}
-          <div className={cn(
-            "flex flex-col items-center mb-4 animate-slide-up",
-            isShaking && "animate-[shake_0.5s_ease-in-out]"
-          )}>
-            <p className="text-sm text-muted-foreground mb-4">Enter your PIN to continue</p>
-            <div className="flex gap-3 mb-2">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "w-4 h-4 rounded-full transition-all duration-200",
-                    i < pin.length ? "bg-primary scale-110" : "bg-muted"
-                  )}
-                />
-              ))}
-            </div>
-            {error && (
-              <p className="text-destructive text-sm mt-2">{error}</p>
-            )}
-          </div>
-
-          {/* Keypad */}
-          <div className="grid grid-cols-3 gap-3 w-full max-w-xs animate-slide-up mb-4">
-            {keypadButtons.map((btn) => (
-              <button
-                key={btn}
-                onClick={() => {
-                  if (btn === 'clear') handleClear();
-                  else if (btn === 'delete') handleDelete();
-                  else handlePinInput(btn);
-                }}
-                className={cn(
-                  "keypad-btn",
-                  btn === 'delete' && "bg-secondary",
-                  btn === 'clear' && "bg-muted"
+          {/* LOGIN FLOW (PIN and Keypad) - Hide when Resetting */}
+          {!showReset && (
+            <>
+              {/* PIN Dots */}
+              <div className={cn(
+                "flex flex-col items-center mb-2 animate-slide-up",
+                isShaking && "animate-[shake_0.5s_ease-in-out]"
+              )}>
+                <div className="flex gap-3 mb-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "w-4 h-4 rounded-full transition-all duration-200",
+                        i < pin.length ? "bg-primary scale-110" : "bg-muted"
+                      )}
+                    />
+                  ))}
+                </div>
+                {error && (
+                  <p className="text-destructive text-sm mt-2 font-medium bg-destructive/10 px-3 py-1 rounded-full animate-fade-in">{error}</p>
                 )}
-              >
-                {btn === 'delete' ? (
-                  <Delete className="w-6 h-6" />
-                ) : btn === 'clear' ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  btn
-                )}
-              </button>
-            ))}
-          </div>
-          <div className="max-w-[200px] w-full mx-auto">
-             <Button className="w-full mb-2 h-10 text-sm" onClick={handleLogin} disabled={pin.length !== 4}>Login</Button>
-          </div>
-          <p className="text-xs text-muted-foreground flex items-center gap-1 cursor-pointer underline hover:text-primary transition-colors justify-center mb-4" onClick={() => setShowSignUp(true)}>
-             Staff Sign Up
-          </p>
-
-          {/* PIN Reset Options */}
-          <div className="mt-12 text-center">
-            <p className="text-xs text-muted-foreground mb-3 cursor-pointer underline" onClick={() => setShowReset(true)}>Forgot your PIN?</p>
-            {showReset && (
-              <div className="space-y-4">
-                <Input
-                  placeholder="Enter your email"
-                  type="email"
-                  value={resetEmail}
-                  onChange={e => setResetEmail(e.target.value)}
-                  className="mb-2"
-                />
-                <Button
-                  variant="outline"
-                  className="w-full mb-2"
-                  onClick={handleWhatsAppReset}
-                >
-                  Reset PIN via WhatsApp
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleEmailReset}
-                >
-                  Reset PIN via Email
-                </Button>
-                {resetError && <p className="text-destructive text-sm mt-2">{resetError}</p>}
-                <p className="text-xs text-muted-foreground mt-2">PIN changes in your main POS system will automatically sync here.</p>
               </div>
-            )}
-          </div>
+
+              {/* Keypad */}
+              <div className="grid grid-cols-3 gap-3 w-full max-w-xs animate-slide-up mb-6">
+                {keypadButtons.map((btn) => (
+                  <button
+                    key={btn}
+                    onClick={() => {
+                      if (btn === 'clear') handleClear();
+                      else if (btn === 'delete') handleDelete();
+                      else handlePinInput(btn);
+                    }}
+                    className={cn(
+                      "keypad-btn",
+                      btn === 'delete' && "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+                      btn === 'clear' && "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    {btn === 'delete' ? (
+                      <Delete className="w-6 h-6" />
+                    ) : btn === 'clear' ? (
+                      <X className="w-6 h-6" />
+                    ) : (
+                      btn
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Login Button - Removed as per request for automatic login
+              <div className="max-w-[200px] w-full mx-auto">
+                <Button 
+                  className="w-full mb-4 h-10 text-sm font-semibold shadow-lg hover:shadow-xl transition-all" 
+                  onClick={handleLogin} 
+                  disabled={pin.length !== 4}
+                >
+                  Login
+                </Button>
+              </div>
+              */}
+
+              {/* Forgot PIN Link */}
+              <div className="mt-4 text-center">
+                <p className="text-xs text-muted-foreground cursor-pointer underline hover:text-primary transition-colors" onClick={() => setShowReset(true)}>
+                  Forgot your PIN?
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* RESET FLOW - Show only if showReset is true */}
+          {showReset && (
+            <div className="flex flex-col items-center w-full max-w-xs animate-fade-in">
+              
+              {/* Step 1: Email Input */}
+              {!showOtpInput && !showNewPinForm && (
+                <div className="w-full space-y-4 mt-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Email Address</label>
+                    <Input
+                      placeholder="Enter your email"
+                      type="email"
+                      value={resetEmail}
+                      onChange={e => setResetEmail(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="default"
+                    className="w-full"
+                    onClick={handleEmailReset}
+                    disabled={pendingOtp}
+                  >
+                    {pendingOtp ? 'Sending OTP...' : 'Send Reset Code'}
+                  </Button>
+                  
+                  {resetError && <p className="text-destructive text-sm mt-2 text-center">{resetError}</p>}
+                  
+                  <div className="pt-2">
+                     <Button
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => { setPendingOtp(false); setShowReset(false); setResetEmail(''); setOtp(''); setResetError(''); }}
+                      >
+                        Cancel
+                      </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: OTP Input */}
+              {showOtpInput && (
+                <div className="w-full space-y-4 mt-2">
+                  <div className="text-center mb-2">
+                      <p className="text-sm text-muted-foreground">We sent a code to <span className="font-medium text-foreground">{resetEmail}</span></p>
+                  </div>
+                  <Input
+                    placeholder="Enter 6-digit verification code"
+                    type="text"
+                    value={otp}
+                    onChange={e => setOtp(e.target.value)}
+                    className="text-center tracking-widest text-lg"
+                  />
+                  <Button
+                    variant="default"
+                    className="w-full"
+                    onClick={handleOtpVerify}
+                  >
+                    Verify Code
+                  </Button>
+                  {otpError && <p className="text-destructive text-sm mt-2 text-center">{otpError}</p>}
+                   <Button
+                      variant="ghost"
+                      className="w-full mt-2 text-muted-foreground"
+                      onClick={() => { setShowOtpInput(false); }}
+                    >
+                      Back
+                    </Button>
+                </div>
+              )}
+
+              {/* Step 3: New PIN Form */}
+              {showNewPinForm && (
+                <div className="w-full space-y-4 mt-2">
+                  <Input
+                    placeholder="Enter new 4-digit PIN"
+                    type="number"
+                    value={newPin}
+                    onChange={e => setNewPin(e.target.value)}
+                    maxLength={4}
+                  />
+                  <Input
+                    placeholder="Confirm new 4-digit PIN"
+                    type="number"
+                    value={confirmPin}
+                    onChange={e => setConfirmPin(e.target.value)}
+                    maxLength={4}
+                  />
+                  <Button
+                    variant="default"
+                    className="w-full"
+                    onClick={handleSetNewPin}
+                  >
+                    Set New PIN
+                  </Button>
+                  {pinChangeMsg && <p className={cn("text-sm mt-2 text-center", pinChangeMsg.includes('success') ? "text-green-600" : "text-destructive")}>{pinChangeMsg}</p>}
+                </div>
+              )}
+            </div>
+          )}
         </>
       ) : (
+        // SIGN UP FLOW
         <div className="w-full max-w-xs animate-slide-up">
-          <h2 className="text-xl font-bold mb-4">Sign Up</h2>
           <Input className="mb-2" placeholder="Name" value={signUpName} onChange={e => setSignUpName(e.target.value)} />
           <Input className="mb-2" placeholder="Email" type="email" value={signUpEmail} onChange={e => setSignUpEmail(e.target.value)} />
           <Input className="mb-2" placeholder="4-digit PIN" type="number" value={signUpPin} onChange={e => setSignUpPin(e.target.value)} maxLength={4} />
           <Input className="mb-2" placeholder="Role (Cashier/Manager)" value={signUpRole} onChange={e => setSignUpRole(e.target.value)} />
+          
           {signUpError && <p className="text-destructive text-sm mb-2">{signUpError}</p>}
+          
           <Button className="w-full mb-2" onClick={async () => {
             if (!signUpName || !signUpEmail || signUpPin.length !== 4 || !signUpRole) {
               setSignUpError('Please fill all fields and use a 4-digit PIN');
@@ -249,6 +421,16 @@ export const LoginScreen: React.FC = () => {
           <Button className="w-full" variant="outline" onClick={() => setShowSignUp(false)}>Back to Login</Button>
         </div>
       )}
+
+      {/* Sign Up Removed - Only Developers can create clients
+      {!showSignUp && !showReset && (
+        <div className="mt-8 text-center animate-fade-in">
+           <p className="text-muted-foreground text-sm">
+             New here? <Button variant="link" className="p-0 h-auto font-semibold text-primary" onClick={() => setShowSignUp(true)}>Create Account</Button>
+           </p>
+        </div>
+      )}
+      */}
     </div>
   );
 };

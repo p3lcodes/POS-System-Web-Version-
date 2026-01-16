@@ -1,5 +1,14 @@
 export type UserRole = 'admin' | 'owner' | 'cashier' | 'developer';
 
+export interface BusinessConfig {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  logo?: string;
+  paymentConfig?: any;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -7,6 +16,7 @@ export interface User {
   role: UserRole;
   avatar: string;
   active: boolean;
+  business?: BusinessConfig;
 }
 
 export const initialUsers: User[] = [

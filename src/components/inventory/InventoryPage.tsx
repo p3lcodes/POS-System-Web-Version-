@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { Product, categories } from '@/data/products';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,7 @@ import {
 
 export const InventoryPage: React.FC = () => {
   const { products, updateProduct, updateStock, addProduct, deleteProduct, currentUser, login } = useStore();
+  const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showLowStock, setShowLowStock] = useState(false);
@@ -60,6 +62,16 @@ export const InventoryPage: React.FC = () => {
     image: '',
     lowStockThreshold: 10,
   });
+
+  // Handle URL params for adding new product
+  useEffect(() => {
+    const newBarcode = searchParams.get('newBarcode');
+    if (newBarcode) {
+      setNewProduct(prev => ({ ...prev, barcode: newBarcode }));
+      setShowAddModal(true);
+    }
+  }, [searchParams]);
+
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner' || currentUser?.role === 'developer';
   const isCashier = currentUser?.role === 'cashier';
   // State for admin PIN confirmation

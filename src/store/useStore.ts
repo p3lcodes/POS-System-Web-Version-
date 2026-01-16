@@ -38,6 +38,13 @@ export interface Shift {
   endTime?: Date;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  goods: string[];
+}
+
 export interface CartTab {
   id: string;
   label: string;
@@ -67,13 +74,21 @@ interface AppState {
   // Notifications
   notifications: Notification[];
   
+  // Suppliers
+  suppliers: Supplier[];
+  addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
+  deleteSupplier: (id: string) => void;
+
   // App State
   isOnline: boolean;
   isDarkMode: boolean;
   pendingSyncs: number;
+  activeBusinessId: string | number | null; // For multi-tenancy & dev override
   
   // Auth Actions
-  login: (pin: string) => boolean;
+  setCurrentUser: (user: User | null) => void;
+  setActiveBusiness: (id: string | number) => void;
+  login: (pin: string) => Promise<boolean>;
   logout: () => void;
   addUser: (user: Omit<User, 'id'>) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
@@ -142,7 +157,10 @@ export const useStore = create<AppState>()(
             // Fetch products from backend
             fetchProducts: async () => {
               try {
-                const res = await fetch(`${API_BASE_URL}/api/products`);
+                const businessId = get().activeBusinessId || 1;
+                const res = await fetch(`${API_BASE_URL}/api/products`, {
+                    headers: { 'x-business-id': String(businessId) }
+                });
                 const data = await res.json();
                 set({ products: data });
               } catch (err) {
@@ -157,11 +175,23 @@ export const useStore = create<AppState>()(
       shifts: [],
       sales: [],
       notifications: [],
+      suppliers: [
+        { id: '1', name: 'Broadways Bakery', phone: '254700000001', goods: ['Bread', 'Buns', 'Scones'] },
+        { id: '2', name: 'KCC Dairy', phone: '254700000002', goods: ['Milk', 'Mala', 'Yoghurt'] },
+        { id: '3', name: 'Pwani Oil', phone: '254700000003', goods: ['Fresh Fri', 'Salit', 'Popcorn Oil'] },
+      ],
       isOnline: navigator.onLine,
       isDarkMode: false,
       pendingSyncs: 0,
+      activeBusinessId: null,
 
       // Auth Actions
+      setCurrentUser: (user) => set({ 
+        currentUser: user, 
+        isAuthenticated: !!user,
+        activeBusinessId: user?.business?.id || 1 
+      }),
+      setActiveBusiness: (id) => set({ activeBusinessId: id }),
       login: async (pin: string) => {
         try {
           const res = await fetch(`${API_BASE_URL}/api/users/login`, {
@@ -419,6 +449,19 @@ export const useStore = create<AppState>()(
         set({ notifications: [] });
       },
 
+      // Supplier Actions
+      addSupplier: (supplierData) => {
+        const newSupplier: Supplier = {
+            ...supplierData,
+            id: `sup-${Date.now()}`
+        };
+        set(state => ({ suppliers: [...state.suppliers, newSupplier] }));
+      },
+
+      deleteSupplier: (id) => {
+        set(state => ({ suppliers: state.suppliers.filter(s => s.id !== id) }));
+      },
+
       // App Actions
       setOnlineStatus: (status) => {
         set({ isOnline: status });
@@ -561,6 +604,7 @@ export const useStore = create<AppState>()(
         users: state.users,
         sales: state.sales,
         notifications: state.notifications,
+        suppliers: state.suppliers,
         isDarkMode: state.isDarkMode,
         pendingSyncs: state.pendingSyncs,
         shifts: state.shifts,

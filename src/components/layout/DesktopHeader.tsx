@@ -33,7 +33,7 @@ interface DesktopHeaderProps {
 
 
 const navItems = [
-  // { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pos', label: 'POS / Sell', icon: ShoppingCart },
   { id: 'inventory', label: 'Inventory', icon: Package },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
@@ -52,8 +52,8 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabCh
         <div className="flex items-center gap-3 mr-8">
           <div className="h-32 w-auto">
             <img 
-              src="/rosemarylogo-.png" 
-              alt="FreshFity Supermarket" 
+              src={currentUser?.business?.logo || "/rosemarylogo-.png"} 
+              alt={currentUser?.business?.name || "FreshFity Supermarket"} 
               className="h-full w-auto object-contain"
             />
           </div>

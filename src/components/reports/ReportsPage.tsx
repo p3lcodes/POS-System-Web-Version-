@@ -43,7 +43,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Progress } from "@/components/ui/progress"
-
+import { AuditLogs } from './AuditLogs';
 
 export const ReportsPage: React.FC = () => {
   const { currentUser, products, updateStock, fetchProducts, shifts, currentShift } = useStore();
@@ -57,6 +57,7 @@ export const ReportsPage: React.FC = () => {
   const [showMpesaList, setShowMpesaList] = useState(false);
   const [showShiftList, setShowShiftList] = useState(false);
   const [showCashList, setShowCashList] = useState(false);
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [soldItemsList, setSoldItemsList] = useState<any[]>([]);
   const [mpesaTransactions, setMpesaTransactions] = useState<any[]>([]);
   const [cashTransactions, setCashTransactions] = useState<any[]>([]);
@@ -161,6 +162,10 @@ export const ReportsPage: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-2">
+           <Button variant="outline" className="gap-2 bg-white" onClick={() => setShowAuditLogs(true)}>
+            <List className="w-4 h-4" />
+            Audit Logs
+          </Button>
           <Select value={range} onValueChange={setRange}>
             <SelectTrigger className="w-[180px] bg-white">
               <Calendar className="w-4 h-4 mr-2" />
@@ -571,6 +576,12 @@ export const ReportsPage: React.FC = () => {
               </TableBody>
             </Table>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Audit Logs Modal */}
+      <Dialog open={showAuditLogs} onOpenChange={setShowAuditLogs}>
+        <DialogContent className="max-w-4xl h-[80vh]">
+          <AuditLogs />
         </DialogContent>
       </Dialog>
     </div>
